@@ -20,6 +20,9 @@ Instead of manually writing SQL queries, a business user can simply ask question
 The system converts the natural-language question into a complete analytical workflow.
 
 ---
+## 🏗️ Architecture
+
+![LangGraph Architecture](business_analyst_graph.png)'
 
 ## 🚀 Key Features
 
