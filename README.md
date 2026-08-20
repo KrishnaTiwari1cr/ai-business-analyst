@@ -36,3 +36,16 @@ Execution Error?
  Re-execute   Visualization
      ↘          ↙
       Business Insight
+---
+
+## 🎯 Problem Statement
+
+Traditional business analysis often requires users to manually write SQL queries, validate database results, analyze data, create visualizations, and interpret the findings.
+
+AI Business Analyst automates this workflow by allowing users to ask business questions in natural language.
+
+For example:
+
+> "Which product category generated the most revenue?"
+
+The system automatically converts the question into SQL, validates and executes the query, analyzes the result, generates a visualization, and produces a business-friendly insight.
