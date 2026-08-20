@@ -4,3 +4,6 @@ __pycache__/
 *.pyc
 .DS_Store.agents/
 .agents/
+
+.DS_Store
+*.mmd
