@@ -1,0 +1,566 @@
+from langgraph.graph import (
+    StateGraph,
+    START,
+    END
+)
+
+from app.graph.state import (
+    BusinessAnalystState
+)
+
+from app.graph.nodes import (
+    classify_question,
+    generate_sql_node,
+    validate_sql_node,
+    repair_sql_node,
+    execute_sql_node,
+    analyze_data_node,
+    visualization_data_node,
+    generate_insight_node,
+    root_cause_analysis_node,
+    route_intent,
+    route_sql_validation,
+    route_execution
+)
+
+
+# =========================================================
+# BUILD BUSINESS ANALYST GRAPH
+# =========================================================
+
+def build_business_graph():
+
+    graph = StateGraph(
+        BusinessAnalystState
+    )
+
+    # =====================================================
+    # REGISTER NODES
+    # =====================================================
+
+    graph.add_node(
+        "classify_question",
+        classify_question
+    )
+
+    graph.add_node(
+        "generate_sql",
+        generate_sql_node
+    )
+
+    graph.add_node(
+        "validate_sql",
+        validate_sql_node
+    )
+
+    graph.add_node(
+        "repair_sql",
+        repair_sql_node
+    )
+
+    graph.add_node(
+        "execute_sql",
+        execute_sql_node
+    )
+
+    graph.add_node(
+        "analyze_data",
+        analyze_data_node
+    )
+
+    graph.add_node(
+        "visualization_data",
+        visualization_data_node
+    )
+
+    graph.add_node(
+        "generate_insight",
+        generate_insight_node
+    )
+
+    graph.add_node(
+        "root_cause_analysis",
+        root_cause_analysis_node
+    )
+
+    # =====================================================
+    # START
+    # =====================================================
+
+    graph.add_edge(
+        START,
+        "classify_question"
+    )
+
+    # =====================================================
+    # CLASSIFY QUESTION
+    # =====================================================
+
+    graph.add_conditional_edges(
+
+        "classify_question",
+
+        route_intent,
+
+        {
+            "analytics":
+                "generate_sql",
+
+            "root_cause":
+                "root_cause_analysis"
+        }
+    )
+
+    # =====================================================
+    # GENERATE SQL → VALIDATE
+    # =====================================================
+
+    graph.add_edge(
+        "generate_sql",
+        "validate_sql"
+    )
+
+    # =====================================================
+    # VALIDATE SQL
+    #
+    # Valid   → Execute
+    # Invalid → Repair
+    # End     → END
+    # =====================================================
+
+    graph.add_conditional_edges(
+
+        "validate_sql",
+
+        route_sql_validation,
+
+        {
+            "execute":
+                "execute_sql",
+
+            "repair":
+                "repair_sql",
+
+            "end":
+                END
+        }
+    )
+
+    # =====================================================
+    # REPAIR → VALIDATE AGAIN
+    # =====================================================
+
+    graph.add_edge(
+        "repair_sql",
+        "validate_sql"
+    )
+
+    # =====================================================
+    # EXECUTE SQL
+    #
+    # Success → Analyze
+    # Failure → Repair
+    # End     → END
+    # =====================================================
+
+    graph.add_conditional_edges(
+
+        "execute_sql",
+
+        route_execution,
+
+        {
+            "analyze":
+                "analyze_data",
+
+            "repair":
+                "repair_sql",
+
+            "end":
+                END
+        }
+    )
+
+    # =====================================================
+    # ANALYZE DATA
+    # =====================================================
+
+    graph.add_edge(
+        "analyze_data",
+        "visualization_data"
+    )
+
+    # =====================================================
+    # VISUALIZATION
+    # =====================================================
+
+    graph.add_edge(
+        "visualization_data",
+        "generate_insight"
+    )
+
+    # =====================================================
+    # FINAL INSIGHT
+    # =====================================================
+
+    graph.add_edge(
+        "generate_insight",
+        END
+    )
+
+    # =====================================================
+    # ROOT CAUSE
+    # =====================================================
+
+    graph.add_edge(
+        "root_cause_analysis",
+        END
+    )
+
+    # =====================================================
+    # COMPILE
+    # =====================================================
+
+    return graph.compile()
+
+
+# =========================================================
+# GLOBAL GRAPH
+# =========================================================
+
+business_graph = build_business_graph()
+
+
+# =========================================================
+# RUN GRAPH
+# =========================================================
+
+def run_business_graph(
+    question: str
+):
+
+    if not question or not question.strip():
+
+        raise ValueError(
+            "Business question cannot be empty."
+        )
+
+    # =====================================================
+    # INITIAL STATE
+    # =====================================================
+
+    initial_state: BusinessAnalystState = {
+
+        "question":
+            question.strip(),
+
+        "intent":
+            None,
+
+        "target_month":
+            None,
+
+        "sql":
+            None,
+
+        "sql_valid":
+            False,
+
+        "sql_validation_message":
+            None,
+
+        "execution_error":
+            None,
+
+        "execution_success":
+            False,
+
+        "data":
+            None,
+
+        "visualization_data":
+            None,
+
+        "analysis":
+            None,
+
+        "category_analysis":
+            None,
+
+        "product_analysis":
+            None,
+
+        "previous_month":
+            None,
+
+        "current_month":
+            None,
+
+        "previous_total":
+            None,
+
+        "current_total":
+            None,
+
+        "revenue_change":
+            None,
+
+        "revenue_change_percent":
+            None,
+
+        "insight":
+            None,
+
+        "provider":
+            None,
+
+        "chart_path":
+            None,
+
+        "error":
+            None,
+
+        "retry_count":
+            0
+    }
+
+    # =====================================================
+    # RUN
+    # =====================================================
+
+    result = business_graph.invoke(
+        initial_state
+    )
+
+    return result
+
+
+# =========================================================
+# TERMINAL APPLICATION
+# =========================================================
+
+if __name__ == "__main__":
+
+    print("=" * 60)
+
+    print(
+        "       LANGGRAPH BUSINESS ANALYST"
+    )
+
+    print("=" * 60)
+
+    question = input(
+        "\nAsk a business question: "
+    ).strip()
+
+    if not question:
+
+        print(
+            "\n❌ Question cannot be empty."
+        )
+
+        raise SystemExit
+
+    print(
+        "\n🚀 Starting LangGraph..."
+    )
+
+    try:
+
+        result = run_business_graph(
+            question
+        )
+
+        # =================================================
+        # COMPLETE
+        # =================================================
+
+        print(
+            "\n" + "=" * 60
+        )
+
+        print(
+            "LANGGRAPH EXECUTION COMPLETE"
+        )
+
+        print(
+            "=" * 60
+        )
+
+        # =================================================
+        # INTENT
+        # =================================================
+
+        print(
+            "\nIntent:"
+        )
+
+        print(
+            result.get(
+                "intent"
+            )
+        )
+
+        # =================================================
+        # PROVIDER
+        # =================================================
+
+        print(
+            "\nProvider:"
+        )
+
+        print(
+            result.get(
+                "provider"
+            )
+        )
+
+        # =================================================
+        # RETRY COUNT
+        # =================================================
+
+        print(
+            "\nSQL repair attempts:"
+        )
+
+        print(
+            result.get(
+                "retry_count",
+                0
+            )
+        )
+
+        # =================================================
+        # SQL
+        # =================================================
+
+        if result.get(
+            "sql"
+        ):
+
+            print(
+                "\nGenerated SQL:"
+            )
+
+            print(
+                "-" * 60
+            )
+
+            print(
+                result[
+                    "sql"
+                ]
+            )
+
+            print(
+                "-" * 60
+            )
+
+        # =================================================
+        # DATABASE RESULTS
+        # =================================================
+
+        data = result.get(
+            "data"
+        )
+
+        if data is not None:
+
+            try:
+
+                print(
+                    "\nDatabase rows:"
+                )
+
+                print(
+                    len(data)
+                )
+
+            except Exception:
+                pass
+
+        # =================================================
+        # VISUALIZATION DATA
+        # =================================================
+
+        visualization_data = (
+            result.get(
+                "visualization_data"
+            )
+        )
+
+        if visualization_data is not None:
+
+            try:
+
+                print(
+                    "\nVisualization rows:"
+                )
+
+                print(
+                    len(
+                        visualization_data
+                    )
+                )
+
+            except Exception:
+                pass
+
+        # =================================================
+        # FINAL INSIGHT
+        # =================================================
+
+        if result.get(
+            "insight"
+        ):
+
+            print(
+                "\nFINAL BUSINESS INSIGHT:"
+            )
+
+            print(
+                "=" * 60
+            )
+
+            print(
+                result[
+                    "insight"
+                ]
+            )
+
+        # =================================================
+        # ERROR
+        # =================================================
+
+        if result.get(
+            "error"
+        ):
+
+            print(
+                "\n⚠️ ERROR:"
+            )
+
+            print(
+                result[
+                    "error"
+                ]
+            )
+
+    except Exception as e:
+
+        print(
+            "\n❌ LangGraph execution failed."
+        )
+
+        print(
+            "Error type:",
+            type(e).__name__
+        )
+
+        print(
+            "Error:"
+        )
+
+        print(
+            str(e)
+        )
