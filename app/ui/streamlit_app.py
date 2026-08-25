@@ -22,6 +22,7 @@ if PROJECT_ROOT not in sys.path:
 
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 
 from app.graph.business_graph import run_business_graph
 from app.analytics.visualization import create_chart
@@ -466,7 +467,13 @@ if analyze:
 
     with status2:
 
-        if sql:
+        if intent == "root_cause":
+
+            st.success(
+                "✅ Root-cause analysis"
+            )
+
+        elif sql:
 
             st.success(
                 "✅ SQL generated"
@@ -481,7 +488,13 @@ if analyze:
 
     with status3:
 
-        if sql_valid:
+        if intent == "root_cause":
+
+            st.success(
+                "✅ Revenue comparison loaded"
+            )
+
+        elif sql_valid:
 
             st.success(
                 "✅ SQL validated"
@@ -496,7 +509,13 @@ if analyze:
 
     with status4:
 
-        if execution_success:
+        if intent == "root_cause":
+
+            st.success(
+                "✅ Driver analysis complete"
+            )
+
+        elif execution_success:
 
             st.success(
                 "✅ Query executed"
@@ -588,41 +607,19 @@ if analyze:
 
             with k1:
 
-                st.markdown(
-                    f"""
-                    <div class="kpi-card">
-
-                        <div class="kpi-label">
-                            Previous Month
-                        </div>
-
-                        <div class="kpi-value">
-                            {format_money(previous_total)}
-                        </div>
-
-                    </div>
-                    """,
-                    unsafe_allow_html=True
+                st.metric(
+                    "Previous month",
+                    format_money(previous_total),
+                    border=True
                 )
 
 
             with k2:
 
-                st.markdown(
-                    f"""
-                    <div class="kpi-card">
-
-                        <div class="kpi-label">
-                            Current Month
-                        </div>
-
-                        <div class="kpi-value">
-                            {format_money(current_total)}
-                        </div>
-
-                    </div>
-                    """,
-                    unsafe_allow_html=True
+                st.metric(
+                    "Current month",
+                    format_money(current_total),
+                    border=True
                 )
 
 
@@ -642,25 +639,11 @@ if analyze:
                     else ""
                 )
 
-                st.markdown(
-                    f"""
-                    <div class="kpi-card">
-
-                        <div class="kpi-label">
-                            Revenue Change
-                        </div>
-
-                        <div class="kpi-value">
-                            {change_value}
-                        </div>
-
-                        <div class="kpi-label">
-                            {change_percent}
-                        </div>
-
-                    </div>
-                    """,
-                    unsafe_allow_html=True
+                st.metric(
+                    "Revenue change",
+                    change_value,
+                    change_percent,
+                    border=True
                 )
 
 
@@ -668,10 +651,7 @@ if analyze:
     # QUERY RESULT
     # =====================================================
 
-    if (
-        data is not None
-        and not data.empty
-    ):
+    if data is not None and not data.empty:
 
         st.markdown(
             '<div class="section-title">'
@@ -680,22 +660,12 @@ if analyze:
             unsafe_allow_html=True
         )
 
-
-        display_df = format_dataframe(
-            data
-        )
-
-
-        # =================================================
-        # SINGLE NUMERIC RESULT
-        # =================================================
+        display_df = format_dataframe(data)
 
         if (
             len(data) == 1
             and len(data.columns) == 1
-            and pd.api.types.is_numeric_dtype(
-                data.iloc[:, 0]
-            )
+            and pd.api.types.is_numeric_dtype(data.iloc[:, 0])
         ):
 
             value = data.iloc[0, 0]
@@ -703,15 +673,12 @@ if analyze:
             st.markdown(
                 f"""
                 <div class="kpi-card">
-
                     <div class="kpi-label">
                         {data.columns[0].replace("_", " ").title()}
                     </div>
-
                     <div class="kpi-value">
                         {format_money(value)}
                     </div>
-
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -721,14 +688,11 @@ if analyze:
 
             st.dataframe(
                 display_df,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True
             )
 
-
-        st.caption(
-            f"{len(data)} row(s) returned"
-        )
+        st.caption(f"{len(data)} row(s) returned")
 
 
     # =====================================================
@@ -737,23 +701,13 @@ if analyze:
 
     if sql:
 
-        with st.expander(
-            "🔧 View generated SQL"
-        ):
+        with st.expander("🔧 View generated SQL"):
 
-            st.code(
-                sql,
-                language="sql"
-            )
+            st.code(sql, language="sql")
 
 
     # =====================================================
-    # VISUALIZATION
-    #
-    # IMPORTANT:
-    # If LangGraph did not create separate
-    # visualization_data, use the main query result.
-    # This fixes single-value KPI queries.
+    # ADAPTIVE VISUALIZATION
     # =====================================================
 
     chart_data = None
@@ -762,25 +716,13 @@ if analyze:
         visualization_data is not None
         and not visualization_data.empty
     ):
-
         chart_data = visualization_data.copy()
 
-    elif (
-        data is not None
-        and not data.empty
-    ):
-
+    elif data is not None and not data.empty:
         chart_data = data.copy()
 
 
-    # =====================================================
-    # CREATE VISUALIZATION
-    # =====================================================
-
-    if (
-        chart_data is not None
-        and not chart_data.empty
-    ):
+    if chart_data is not None and not chart_data.empty:
 
         st.markdown(
             '<div class="section-title">'
@@ -789,32 +731,299 @@ if analyze:
             unsafe_allow_html=True
         )
 
-
         try:
 
             figure = create_chart(
                 chart_data
             )
 
+            if figure is None:
+                raise ValueError(
+                    "create_chart() returned None."
+                )
+
             st.plotly_chart(
                 figure,
-                use_container_width=True
+                use_container_width=True,
+                key="business_analytics_chart"
             )
 
-        except Exception as e:
+        except Exception as primary_error:
 
-            st.info(
-                "No suitable visualization is available "
-                "for this result."
-            )
+            try:
 
-            with st.expander(
-                "Visualization details"
-            ):
+                import plotly.express as px
 
-                st.code(
-                    str(e)
+                df_chart = chart_data.copy()
+
+                date_column = None
+                numeric_columns = []
+                categorical_columns = []
+
+                # =================================================
+                # DETECT DATE / TIME
+                # =================================================
+
+                for column in df_chart.columns:
+
+                    name = str(column).lower()
+
+                    converted = pd.to_datetime(
+                        df_chart[column],
+                        errors="coerce"
+                    )
+
+                    if (
+                        any(
+                            word in name
+                            for word in (
+                                "date",
+                                "month",
+                                "year",
+                                "time",
+                                "timestamp"
+                            )
+                        )
+                        and converted.notna().sum() > 0
+                    ):
+
+                        df_chart[column] = converted
+
+                        date_column = column
+
+                        break
+
+
+                # =================================================
+                # DETECT NUMERIC / CATEGORICAL
+                # =================================================
+
+                for column in df_chart.columns:
+
+                    if column == date_column:
+                        continue
+
+                    converted = pd.to_numeric(
+                        df_chart[column],
+                        errors="coerce"
+                    )
+
+                    if (
+                        converted.notna().sum()
+                        >= max(
+                            1,
+                            int(
+                                len(df_chart) * 0.7
+                            )
+                        )
+                    ):
+
+                        df_chart[column] = converted
+
+                        numeric_columns.append(
+                            column
+                        )
+
+                    else:
+
+                        categorical_columns.append(
+                            column
+                        )
+
+
+                # =================================================
+                # TIME SERIES
+                # =================================================
+
+                if (
+                    date_column is not None
+                    and numeric_columns
+                ):
+
+                    plot_df = (
+                        df_chart
+                        .dropna(
+                            subset=[
+                                date_column
+                            ]
+                        )
+                        .sort_values(
+                            date_column
+                        )
+                    )
+
+                    metrics = [
+                        column
+                        for column in numeric_columns
+                        if plot_df[column].nunique() > 1
+                    ]
+
+                    if metrics:
+
+                        figure = px.line(
+                            plot_df,
+                            x=date_column,
+                            y=metrics,
+                            markers=True,
+                            title=(
+                                "Business Metrics Over Time"
+                            )
+                        )
+
+                        figure.update_layout(
+                            template="plotly_dark",
+                            hovermode="x unified",
+                            xaxis_title=(
+                                str(
+                                    date_column
+                                )
+                                .replace(
+                                    "_",
+                                    " "
+                                )
+                                .title()
+                            ),
+                            yaxis_title="Value"
+                        )
+
+                        st.plotly_chart(
+                            figure,
+                            use_container_width=True,
+                            key="fallback_time_series_chart"
+                        )
+
+                    else:
+
+                        st.warning(
+                            "Numeric values do not vary "
+                            "enough to plot."
+                        )
+
+
+                # =================================================
+                # CATEGORY / DIMENSION
+                # =================================================
+
+                elif (
+                    categorical_columns
+                    and numeric_columns
+                ):
+
+                    category_column = (
+                        categorical_columns[0]
+                    )
+
+                    metric_column = (
+                        numeric_columns[0]
+                    )
+
+                    figure = px.bar(
+                        df_chart,
+                        x=category_column,
+                        y=metric_column,
+                        title=(
+                            f"{str(metric_column).replace('_', ' ').title()} "
+                            f"by "
+                            f"{str(category_column).replace('_', ' ').title()}"
+                        )
+                    )
+
+                    figure.update_layout(
+                        template="plotly_dark"
+                    )
+
+                    st.plotly_chart(
+                        figure,
+                        use_container_width=True,
+                        key="fallback_category_chart"
+                    )
+
+
+                # =================================================
+                # MULTIPLE NUMERIC COLUMNS
+                # =================================================
+
+                elif len(numeric_columns) >= 2:
+
+                    figure = px.line(
+                        df_chart,
+                        y=numeric_columns,
+                        markers=True,
+                        title="Business Metrics"
+                    )
+
+                    figure.update_layout(
+                        template="plotly_dark",
+                        hovermode="x unified"
+                    )
+
+                    st.plotly_chart(
+                        figure,
+                        use_container_width=True,
+                        key="fallback_multi_metric_chart"
+                    )
+
+
+                # =================================================
+                # SINGLE NUMERIC COLUMN
+                # =================================================
+
+                elif len(numeric_columns) == 1:
+
+                    metric_column = (
+                        numeric_columns[0]
+                    )
+
+                    figure = px.bar(
+                        df_chart,
+                        y=metric_column,
+                        title=(
+                            str(
+                                metric_column
+                            )
+                            .replace(
+                                "_",
+                                " "
+                            )
+                            .title()
+                        )
+                    )
+
+                    figure.update_layout(
+                        template="plotly_dark"
+                    )
+
+                    st.plotly_chart(
+                        figure,
+                        use_container_width=True,
+                        key="fallback_single_metric_chart"
+                    )
+
+
+                else:
+
+                    st.info(
+                        "No numeric data was found "
+                        "for visualization."
+                    )
+
+
+            except Exception as fallback_error:
+
+                st.error(
+                    "Visualization failed."
                 )
+
+                with st.expander(
+                    "Visualization details"
+                ):
+
+                    st.code(
+                        f"Primary visualization error:\n"
+                        f"{primary_error}\n\n"
+                        f"Fallback visualization error:\n"
+                        f"{fallback_error}"
+                    )
 
 
     # =====================================================
@@ -920,6 +1129,46 @@ if analyze:
                 if not negative.empty:
 
                     product_display = negative
+
+
+            if (
+                "product_name" in product_display.columns
+                and "revenue_change" in product_display.columns
+            ):
+
+                st.markdown(
+                    '<div class="section-title">'
+                    '📉 Largest product revenue losses'
+                    '</div>',
+                    unsafe_allow_html=True
+                )
+
+                loss_chart = px.bar(
+                    product_display.sort_values(
+                        "revenue_change",
+                        ascending=True
+                    ),
+                    x="revenue_change",
+                    y="product_name",
+                    color="category"
+                    if "category" in product_display.columns
+                    else None,
+                    orientation="h",
+                    title="Largest product revenue losses"
+                )
+
+                loss_chart.update_layout(
+                    template="plotly_dark",
+                    xaxis_title="Revenue change",
+                    yaxis_title="Product",
+                    showlegend="category" in product_display.columns
+                )
+
+                st.plotly_chart(
+                    loss_chart,
+                    width="stretch",
+                    key="root_cause_product_loss_chart"
+                )
 
 
             st.dataframe(

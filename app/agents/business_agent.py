@@ -117,7 +117,19 @@ def is_root_cause_question(question: str):
 
         "why did sales",
 
-        "why has sales"
+        "why has sales",
+
+        "which products caused",
+
+        "which products contributed",
+
+        "which categories contributed",
+
+        "largest revenue loss",
+
+        "largest revenue decline",
+
+        "revenue drivers"
 
     ]
 

@@ -1007,8 +1007,13 @@ def generate_insight_node(
 
         return {
 
+            "insight":
+                "Query results are available, but the AI "
+                "business insight could not be generated "
+                "because the LLM provider was unavailable.",
+
             "error":
-                str(e)
+                None
         }
 
 
@@ -1174,37 +1179,58 @@ def root_cause_analysis_node(
             "\n🤖 Generating deep root-cause insight..."
         )
 
-        insight, provider = (
-            generate_deep_root_cause_insight(
+        insight = None
+        provider = None
 
-                previous_month=
-                    previous_month_date.strftime(
-                        "%B %Y"
-                    ),
+        try:
 
-                current_month=
-                    current_month_date.strftime(
-                        "%B %Y"
-                    ),
+            insight, provider = (
+                generate_deep_root_cause_insight(
 
-                previous_total=
-                    previous_total,
+                    previous_month=
+                        previous_month_date.strftime(
+                            "%B %Y"
+                        ),
 
-                current_total=
-                    current_total,
+                    current_month=
+                        current_month_date.strftime(
+                            "%B %Y"
+                        ),
 
-                category_df=
-                    category_df,
+                    previous_total=
+                        previous_total,
 
-                product_df=
-                    product_df
+                    current_total=
+                        current_total,
+
+                    category_df=
+                        category_df,
+
+                    product_df=
+                        product_df
+                )
             )
-        )
 
-        print(
-            f"✅ Root-cause analysis generated using: "
-            f"{provider}"
-        )
+            print(
+                f"✅ Root-cause analysis generated using: "
+                f"{provider}"
+            )
+
+        except Exception as insight_error:
+
+            print(
+                "\n⚠️ Deep root-cause insight generation failed."
+            )
+
+            print(
+                insight_error
+            )
+
+            insight = (
+                "Automated revenue driver analysis completed, "
+                "but the AI insight could not be generated "
+                "because the LLM provider was unavailable."
+            )
 
         return {
 

@@ -121,6 +121,13 @@ STRICT RULES:
 18. Do not put SQL inside ```sql fences.
 19. Do not explain the query.
 20. Return ONLY the SQL query.
+21. For relative date requests (for example, "last 6 months",
+    "recent quarter", or "past year"), anchor the time window to
+    the latest available business date in the relevant date column,
+    not CURRENT_DATE. For orders, use a subquery based on
+    MAX(orders.order_date), so historical datasets remain analyzable.
+22. For a monthly trend, return one row per month in chronological
+    order and include the date/month column plus the requested metric.
 
 USER QUESTION:
 

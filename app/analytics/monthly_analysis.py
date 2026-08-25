@@ -16,7 +16,10 @@ def get_monthly_revenue():
 
     query = text("""
         SELECT
-            DATE_TRUNC('month', o.order_date) AS month,
+            DATE_TRUNC(
+                'month',
+                o.order_date
+            )::DATE AS month,
             SUM(oi.revenue) AS revenue
 
         FROM orders o
@@ -50,10 +53,11 @@ def get_monthly_revenue():
         df["revenue"]
     )
 
-    # Convert month to datetime
+    # Normalize to timezone-naive month dates for consistent filtering
     df["month"] = pd.to_datetime(
-        df["month"]
-    )
+        df["month"],
+        utc=False
+    ).dt.normalize()
 
     return df
 

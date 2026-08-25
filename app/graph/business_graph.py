@@ -93,15 +93,12 @@ def build_business_graph():
     )
 
     # =====================================================
-    # CLASSIFY QUESTION
+    # QUESTION INTENT
     # =====================================================
 
     graph.add_conditional_edges(
-
         "classify_question",
-
         route_intent,
-
         {
             "analytics":
                 "generate_sql",
@@ -112,7 +109,7 @@ def build_business_graph():
     )
 
     # =====================================================
-    # GENERATE SQL → VALIDATE
+    # SQL GENERATION
     # =====================================================
 
     graph.add_edge(
@@ -121,19 +118,12 @@ def build_business_graph():
     )
 
     # =====================================================
-    # VALIDATE SQL
-    #
-    # Valid   → Execute
-    # Invalid → Repair
-    # End     → END
+    # SQL VALIDATION
     # =====================================================
 
     graph.add_conditional_edges(
-
         "validate_sql",
-
         route_sql_validation,
-
         {
             "execute":
                 "execute_sql",
@@ -147,7 +137,7 @@ def build_business_graph():
     )
 
     # =====================================================
-    # REPAIR → VALIDATE AGAIN
+    # SQL REPAIR
     # =====================================================
 
     graph.add_edge(
@@ -156,19 +146,12 @@ def build_business_graph():
     )
 
     # =====================================================
-    # EXECUTE SQL
-    #
-    # Success → Analyze
-    # Failure → Repair
-    # End     → END
+    # SQL EXECUTION
     # =====================================================
 
     graph.add_conditional_edges(
-
         "execute_sql",
-
         route_execution,
-
         {
             "analyze":
                 "analyze_data",
@@ -182,7 +165,7 @@ def build_business_graph():
     )
 
     # =====================================================
-    # ANALYZE DATA
+    # DATA ANALYSIS
     # =====================================================
 
     graph.add_edge(
@@ -191,7 +174,7 @@ def build_business_graph():
     )
 
     # =====================================================
-    # VISUALIZATION
+    # VISUALIZATION DATA
     # =====================================================
 
     graph.add_edge(
@@ -269,11 +252,11 @@ def run_business_graph(
         "sql_validation_message":
             None,
 
-        "execution_error":
-            None,
-
         "execution_success":
             False,
+
+        "execution_error":
+            None,
 
         "data":
             None,
@@ -317,20 +300,129 @@ def run_business_graph(
         "chart_path":
             None,
 
-        "error":
-            None,
-
         "retry_count":
-            0
+            0,
+
+        "error":
+            None
     }
 
     # =====================================================
-    # RUN
+    # RUN LANGGRAPH
     # =====================================================
 
     result = business_graph.invoke(
         initial_state
     )
+
+    # =====================================================
+    # IMPORTANT:
+    # ENSURE QUERY DATA IS AVAILABLE TO UI
+    # =====================================================
+
+    data = result.get(
+        "data"
+    )
+
+    visualization_data = result.get(
+        "visualization_data"
+    )
+
+    # =====================================================
+    # FALLBACK 1
+    #
+    # If visualization_data was not created,
+    # use the original SQL result.
+    # =====================================================
+
+    if (
+        visualization_data is None
+        and data is not None
+    ):
+
+        result[
+            "visualization_data"
+        ] = data
+
+    # =====================================================
+    # FALLBACK 2
+    #
+    # If somehow data is missing but visualization
+    # data exists, expose it as data as well.
+    # =====================================================
+
+    if (
+        data is None
+        and visualization_data is not None
+    ):
+
+        result[
+            "data"
+        ] = visualization_data
+
+    # =====================================================
+    # FINAL DEBUG INFORMATION
+    # =====================================================
+
+    final_data = result.get(
+        "data"
+    )
+
+    final_visualization_data = (
+        result.get(
+            "visualization_data"
+        )
+    )
+
+    if final_data is not None:
+
+        try:
+
+            print(
+                f"\n📦 Final query data: "
+                f"{len(final_data)} row(s)"
+            )
+
+            print(
+                f"📋 Query columns: "
+                f"{list(final_data.columns)}"
+            )
+
+        except Exception:
+            pass
+
+    else:
+
+        print(
+            "\n⚠️ Final query data is None."
+        )
+
+    if final_visualization_data is not None:
+
+        try:
+
+            print(
+                f"📈 Final visualization data: "
+                f"{len(final_visualization_data)} row(s)"
+            )
+
+            print(
+                f"📊 Visualization columns: "
+                f"{list(final_visualization_data.columns)}"
+            )
+
+        except Exception:
+            pass
+
+    else:
+
+        print(
+            "\n⚠️ Final visualization data is None."
+        )
+
+    # =====================================================
+    # RETURN FINAL STATE
+    # =====================================================
 
     return result
 
@@ -476,6 +568,16 @@ if __name__ == "__main__":
                     len(data)
                 )
 
+                print(
+                    "\nDatabase columns:"
+                )
+
+                print(
+                    list(
+                        data.columns
+                    )
+                )
+
             except Exception:
                 pass
 
@@ -500,6 +602,16 @@ if __name__ == "__main__":
                 print(
                     len(
                         visualization_data
+                    )
+                )
+
+                print(
+                    "\nVisualization columns:"
+                )
+
+                print(
+                    list(
+                        visualization_data.columns
                     )
                 )
 
