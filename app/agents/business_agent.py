@@ -115,6 +115,14 @@ def is_root_cause_question(question: str):
 
         "revenue fell",
 
+        "revenue increase",
+
+        "revenue increased",
+
+        "revenue grew",
+
+        "revenue growth",
+
         "why did sales",
 
         "why has sales",
@@ -125,6 +133,10 @@ def is_root_cause_question(question: str):
 
         "which categories contributed",
 
+        "which categories drove",
+
+        "which products drove",
+
         "largest revenue loss",
 
         "largest revenue decline",
@@ -133,9 +145,35 @@ def is_root_cause_question(question: str):
 
     ]
 
-    return any(
+    if any(
         keyword in question
         for keyword in keywords
+    ):
+        return True
+
+    causal_terms = (
+        "why",
+        "cause",
+        "driver",
+        "contribut",
+        "responsible",
+        "largest loss",
+        "biggest loss",
+        "largest decline",
+        "biggest decline",
+    )
+
+    business_subjects = (
+        "revenue",
+        "sales",
+        "product",
+        "category",
+        "segment",
+    )
+
+    return (
+        any(term in question for term in causal_terms)
+        and any(subject in question for subject in business_subjects)
     )
 
 

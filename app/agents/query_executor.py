@@ -1,8 +1,47 @@
+from decimal import Decimal
+
 import pandas as pd
 from sqlalchemy import text
 
 from app.database.connection import engine
 from app.agents.sql_validator import validate_sql
+
+
+def _coerce_query_dtypes(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Convert PostgreSQL NUMERIC values (Python Decimal)
+    into pandas numeric dtypes so KPI detection and
+    charts do not treat money columns as categories.
+    """
+
+    if df is None or df.empty:
+        return df
+
+    for column in df.columns:
+
+        series = df[column]
+
+        if pd.api.types.is_numeric_dtype(series):
+            continue
+
+        if pd.api.types.is_datetime64_any_dtype(series):
+            continue
+
+        values = series.dropna()
+
+        if values.empty:
+            continue
+
+        if values.map(
+            lambda value: isinstance(value, Decimal)
+        ).all():
+
+            df[column] = pd.to_numeric(
+                series,
+                errors="coerce"
+            )
+
+    return df
 
 
 # =========================================================
@@ -49,7 +88,7 @@ def execute_query(sql: str) -> pd.DataFrame:
                 columns=result.keys()
             )
 
-        return df
+        return _coerce_query_dtypes(df)
 
     except Exception as e:
 

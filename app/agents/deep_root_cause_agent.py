@@ -2,6 +2,107 @@ from app.llm.llm_client import generate_text
 
 
 # =========================================================
+# QUESTION FOCUS
+# =========================================================
+
+def detect_rca_focus(question: str | None) -> str:
+    """
+    Identify what the user actually asked about so the
+    insight answers that question instead of repeating
+    a generic revenue-drop writeup.
+    """
+
+    if not question:
+        return "overall"
+
+    text = question.lower()
+
+    if any(
+        keyword in text
+        for keyword in (
+            "product",
+            "sku",
+            "item"
+        )
+    ):
+        return "products"
+
+    if any(
+        keyword in text
+        for keyword in (
+            "categor",
+            "segment"
+        )
+    ):
+        return "categories"
+
+    return "overall"
+
+
+def _period_context(
+    period_source: str | None,
+    previous_month,
+    current_month
+) -> str:
+
+    if period_source == "largest_decline":
+        return (
+            f"The user did not name a month. "
+            f"The comparison {previous_month} → "
+            f"{current_month} was selected automatically "
+            f"because it is the largest month-over-month "
+            f"revenue decline in the data."
+        )
+
+    if period_source == "largest_increase":
+        return (
+            f"The user did not name a month. "
+            f"The comparison {previous_month} → "
+            f"{current_month} was selected automatically "
+            f"because it is the largest month-over-month "
+            f"revenue increase in the data."
+        )
+
+    if period_source == "user_specified":
+        return (
+            f"The user asked about {current_month} "
+            f"compared with {previous_month}."
+        )
+
+    return (
+        f"The comparison period is "
+        f"{previous_month} → {current_month}."
+    )
+
+
+def _focus_instructions(focus: str) -> str:
+
+    if focus == "products":
+        return """
+Answer a PRODUCT-level question.
+Lead with the products that drove the largest
+absolute revenue change. Mention category only
+as supporting context. Do not open with a
+generic overall-revenue essay.
+"""
+
+    if focus == "categories":
+        return """
+Answer a CATEGORY-level question.
+Lead with the categories that drove the largest
+absolute revenue change. Mention products only
+as supporting evidence. Do not open with a
+generic overall-revenue essay.
+"""
+
+    return """
+Answer an overall root-cause question.
+Explain the revenue movement first, then name
+the largest category and product drivers.
+"""
+
+
+# =========================================================
 # DEEP ROOT CAUSE ANALYSIS
 # =========================================================
 
@@ -11,28 +112,18 @@ def generate_deep_root_cause_insight(
     previous_total,
     current_total,
     category_df,
-    product_df
+    product_df,
+    question=None,
+    period_source=None,
+    focus=None
 ):
     """
-    Generate a deep business root-cause analysis.
+    Generate a deep business root-cause analysis
+    that answers the user's specific question.
 
     Returns:
 
         insight, provider
-
-    Example:
-
-        (
-            "Revenue declined because...",
-            "gemini"
-        )
-
-    or:
-
-        (
-            "Revenue declined because...",
-            "groq"
-        )
     """
 
     # =====================================================
@@ -94,40 +185,50 @@ def generate_deep_root_cause_insight(
     # BUILD PROMPT
     # =====================================================
 
+    user_question = (
+        question.strip()
+        if question and question.strip()
+        else "Why did revenue change between these months?"
+    )
+
+    focus = focus or detect_rca_focus(user_question)
+    period_note = _period_context(
+        period_source,
+        previous_month,
+        current_month
+    )
+    focus_note = _focus_instructions(focus)
+
     prompt = f"""
 You are a senior Business Intelligence analyst
 performing a deep root-cause analysis.
 
-Analyze the revenue change between two months.
+Your job is to answer THIS user's question using
+ONLY the driver data below. Do not write a generic
+template that could apply to any question.
 
-PREVIOUS MONTH:
+=========================================================
+USER QUESTION
+=========================================================
 
-{previous_month}
+{user_question}
 
+Question focus: {focus}
 
-CURRENT MONTH:
+{period_note}
 
-{current_month}
+{focus_note}
 
+=========================================================
+PERIOD AND TOTALS
+=========================================================
 
-PREVIOUS REVENUE:
-
-₹{previous_total:,.2f}
-
-
-CURRENT REVENUE:
-
-₹{current_total:,.2f}
-
-
-REVENUE CHANGE:
-
-₹{revenue_change:,.2f}
-
-
-REVENUE CHANGE PERCENTAGE:
-
-{revenue_change_percent:.2f}%
+Previous month: {previous_month}
+Current month: {current_month}
+Previous revenue: ₹{previous_total:,.2f}
+Current revenue: ₹{current_total:,.2f}
+Revenue change: ₹{revenue_change:,.2f}
+Revenue change percentage: {revenue_change_percent:.2f}%
 
 
 =========================================================
@@ -148,10 +249,16 @@ PRODUCT ANALYSIS
 INSTRUCTIONS
 =========================================================
 
-1. Explain the overall revenue movement.
-2. Identify the largest category-level drivers.
-3. Identify the largest product-level drivers.
-4. Distinguish absolute revenue decline from percentage decline.
+1. The first sentence MUST directly answer the
+   user's exact question.
+2. Different questions must produce different answers.
+   A product question is not a category question.
+   A named-month question is not an "overall drop"
+   question.
+3. Identify the largest relevant drivers for the
+   question that was asked.
+4. Distinguish absolute revenue change from
+   percentage change.
 5. Use ONLY the provided data.
 6. Do not invent causes such as pricing, demand,
    inventory or customer behavior unless the data
@@ -160,24 +267,26 @@ INSTRUCTIONS
    correlation or revenue movement.
 8. Use ₹K, ₹M or ₹B for monetary values.
 9. Include percentages where useful.
-10. Prioritize the largest business impacts.
-11. Keep the analysis professional and concise.
-12. Make the final takeaway actionable but grounded
-    strictly in the available evidence.
+10. Keep the analysis professional and concise.
+11. If the period was auto-selected as the largest
+    decline, say that clearly.
 
 Use this structure:
 
-Executive Summary:
+Direct Answer:
+[One or two sentences that answer the user question.]
 
-Overall Revenue Impact:
+Supporting Evidence:
+- [Largest relevant driver]
+- [Second relevant driver]
+- [Third relevant driver if useful]
 
-Category Drivers:
-
-Product Drivers:
-
-Key Observation:
+Context:
+[Only the extra overall / category / product context
+needed to interpret the answer.]
 
 Business Takeaway:
+[One concise takeaway grounded in the evidence.]
 """
 
 

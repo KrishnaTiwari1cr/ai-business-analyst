@@ -243,6 +243,15 @@ def run_business_graph(
         "target_month":
             None,
 
+        "root_cause_focus":
+            None,
+
+        "root_cause_direction":
+            None,
+
+        "period_source":
+            None,
+
         "sql":
             None,
 

@@ -27,10 +27,15 @@ from app.analytics.question_parser import (
     get_target_month
 )
 
+from app.analytics.root_cause_request import (
+    parse_root_cause_request
+)
+
 from app.analytics.monthly_analysis import (
     get_monthly_revenue,
     compare_months,
     find_biggest_drop,
+    find_biggest_increase,
     get_month_comparison
 )
 
@@ -102,6 +107,23 @@ order_items
 - cost NUMERIC
 - profit NUMERIC
 """
+
+
+def is_increase_question(question: str) -> bool:
+    """Return whether a root-cause request asks about growth, not decline."""
+
+    normalized_question = question.lower()
+
+    return any(
+        term in normalized_question
+        for term in (
+            "increase",
+            "increased",
+            "grew",
+            "growth",
+            "gain",
+        )
+    )
 
 
 # =========================================================
@@ -1033,6 +1055,8 @@ def root_cause_analysis_node(
 
     try:
 
+        root_cause_request = parse_root_cause_request(question)
+
         target_month = (
             get_target_month(
                 question
@@ -1082,11 +1106,25 @@ def root_cause_analysis_node(
 
         else:
 
+            period_source = (
+                "largest_increase"
+                if root_cause_request["direction"] == "increase"
+                else "largest_decline"
+            )
+
             target_row = (
-                find_biggest_drop(
+                (
+                    find_biggest_increase
+                    if period_source == "largest_increase"
+                    else find_biggest_drop
+                )(
                     monthly_df
                 )
             )
+
+        if target_month:
+
+            period_source = "user_specified"
 
         if target_row is None:
 
@@ -1206,9 +1244,16 @@ def root_cause_analysis_node(
                     category_df=
                         category_df,
 
-                    product_df=
-                        product_df
-                )
+                product_df=
+                    product_df,
+
+                question=
+                    question,
+
+                period_source=period_source,
+
+                focus=root_cause_request["focus"]
+            )
             )
 
             print(
@@ -1236,6 +1281,15 @@ def root_cause_analysis_node(
 
             "target_month":
                 target_month,
+
+            "root_cause_focus":
+                root_cause_request["focus"],
+
+            "root_cause_direction":
+                root_cause_request["direction"],
+
+            "period_source":
+                period_source,
 
             "previous_month":
                 previous_month,

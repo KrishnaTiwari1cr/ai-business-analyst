@@ -19,6 +19,12 @@ class BusinessAnalystState(TypedDict, total=False):
 
     target_month: Optional[Any]
 
+    root_cause_focus: Optional[str]
+
+    root_cause_direction: Optional[str]
+
+    period_source: Optional[str]
+
     # =====================================================
     # SQL
     # =====================================================

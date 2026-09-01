@@ -26,6 +26,7 @@ import plotly.express as px
 
 from app.graph.business_graph import run_business_graph
 from app.analytics.visualization import create_chart
+from app.agents.deep_root_cause_agent import detect_rca_focus
 
 
 # =========================================================
@@ -171,6 +172,23 @@ def format_money(value):
         )
 
     return f"{sign}₹{value:,.0f}"
+
+
+def is_numeric_series(series):
+
+    if pd.api.types.is_numeric_dtype(series):
+        return True
+
+    converted = pd.to_numeric(
+        series,
+        errors="coerce"
+    )
+
+    return (
+        len(series) > 0
+        and converted.notna().sum() == series.notna().sum()
+        and converted.notna().sum() > 0
+    )
 
 
 # =========================================================
@@ -588,6 +606,26 @@ if analyze:
             "revenue_change_percent"
         )
 
+        previous_month_label = result.get(
+            "previous_month"
+        )
+
+        current_month_label = result.get(
+            "current_month"
+        )
+
+        if previous_month_label:
+
+            previous_month_label = pd.to_datetime(
+                previous_month_label
+            ).strftime("%B %Y")
+
+        if current_month_label:
+
+            current_month_label = pd.to_datetime(
+                current_month_label
+            ).strftime("%B %Y")
+
 
         if (
             previous_total is not None
@@ -608,7 +646,11 @@ if analyze:
             with k1:
 
                 st.metric(
-                    "Previous month",
+                    (
+                        f"Previous month ({previous_month_label})"
+                        if previous_month_label
+                        else "Previous month"
+                    ),
                     format_money(previous_total),
                     border=True
                 )
@@ -617,7 +659,11 @@ if analyze:
             with k2:
 
                 st.metric(
-                    "Current month",
+                    (
+                        f"Current month ({current_month_label})"
+                        if current_month_label
+                        else "Current month"
+                    ),
                     format_money(current_total),
                     border=True
                 )
@@ -665,7 +711,7 @@ if analyze:
         if (
             len(data) == 1
             and len(data.columns) == 1
-            and pd.api.types.is_numeric_dtype(data.iloc[:, 0])
+            and is_numeric_series(data.iloc[:, 0])
         ):
 
             value = data.iloc[0, 0]
@@ -722,7 +768,18 @@ if analyze:
         chart_data = data.copy()
 
 
-    if chart_data is not None and not chart_data.empty:
+    is_single_metric_result = (
+        chart_data is not None
+        and len(chart_data) == 1
+        and len(chart_data.columns) == 1
+        and is_numeric_series(chart_data.iloc[:, 0])
+    )
+
+    if (
+        chart_data is not None
+        and not chart_data.empty
+        and not is_single_metric_result
+    ):
 
         st.markdown(
             '<div class="section-title">'
@@ -744,7 +801,7 @@ if analyze:
 
             st.plotly_chart(
                 figure,
-                use_container_width=True,
+                width="stretch",
                 key="business_analytics_chart"
             )
 
@@ -888,7 +945,7 @@ if analyze:
 
                         st.plotly_chart(
                             figure,
-                            use_container_width=True,
+                            width="stretch",
                             key="fallback_time_series_chart"
                         )
 
@@ -934,7 +991,7 @@ if analyze:
 
                     st.plotly_chart(
                         figure,
-                        use_container_width=True,
+                        width="stretch",
                         key="fallback_category_chart"
                     )
 
@@ -959,7 +1016,7 @@ if analyze:
 
                     st.plotly_chart(
                         figure,
-                        use_container_width=True,
+                        width="stretch",
                         key="fallback_multi_metric_chart"
                     )
 
@@ -969,34 +1026,10 @@ if analyze:
                 # =================================================
 
                 elif len(numeric_columns) == 1:
-
-                    metric_column = (
-                        numeric_columns[0]
-                    )
-
-                    figure = px.bar(
-                        df_chart,
-                        y=metric_column,
-                        title=(
-                            str(
-                                metric_column
-                            )
-                            .replace(
-                                "_",
-                                " "
-                            )
-                            .title()
-                        )
-                    )
-
-                    figure.update_layout(
-                        template="plotly_dark"
-                    )
-
-                    st.plotly_chart(
-                        figure,
-                        use_container_width=True,
-                        key="fallback_single_metric_chart"
+                    st.info(
+                        "This result is a single metric and is shown "
+                        "as a KPI above. Add a date or category to "
+                        "compare it in a chart."
                     )
 
 
@@ -1054,6 +1087,15 @@ if analyze:
 
     if intent == "root_cause":
 
+        root_cause_focus = result.get(
+            "root_cause_focus"
+        ) or detect_rca_focus(question)
+
+        root_cause_direction = result.get(
+            "root_cause_direction",
+            "change"
+        )
+
         category_df = result.get(
             "category_analysis"
         )
@@ -1062,6 +1104,7 @@ if analyze:
         if (
             category_df is not None
             and not category_df.empty
+            and root_cause_focus != "products"
         ):
 
             st.markdown(
@@ -1072,11 +1115,45 @@ if analyze:
             )
 
 
+            if (
+                "category" in category_df.columns
+                and "revenue_change" in category_df.columns
+            ):
+
+                category_chart = px.bar(
+                    category_df.sort_values(
+                        "revenue_change",
+                        ascending=root_cause_direction != "increase"
+                    ),
+                    x="revenue_change",
+                    y="category",
+                    orientation="h",
+                    title=(
+                        "Category contribution to revenue increase"
+                        if root_cause_direction == "increase"
+                        else "Category contribution to revenue decline"
+                        if root_cause_direction == "decline"
+                        else "Category contribution to revenue change"
+                    )
+                )
+
+                category_chart.update_layout(
+                    template="plotly_dark",
+                    xaxis_title="Revenue change",
+                    yaxis_title="Category"
+                )
+
+                st.plotly_chart(
+                    category_chart,
+                    width="stretch",
+                    key="root_cause_category_chart"
+                )
+
             st.dataframe(
                 format_dataframe(
                     category_df
                 ),
-                use_container_width=True,
+                width="stretch",
                 hide_index=True
             )
 
@@ -1093,6 +1170,7 @@ if analyze:
         if (
             product_df is not None
             and not product_df.empty
+            and root_cause_focus != "categories"
         ):
 
             st.markdown(
@@ -1113,22 +1191,26 @@ if analyze:
                 in product_display.columns
             ):
 
-                negative = (
-                    product_display[
-                        product_display[
-                            "revenue_change"
-                        ] < 0
-                    ]
-                    .sort_values(
-                        "revenue_change"
-                    )
-                    .head(10)
-                )
+                if root_cause_direction == "increase":
+                    directional_products = product_display[
+                        product_display["revenue_change"] > 0
+                    ].sort_values(
+                        "revenue_change",
+                        ascending=False
+                    ).head(10)
+                elif root_cause_direction == "decline":
+                    directional_products = product_display[
+                        product_display["revenue_change"] < 0
+                    ].sort_values("revenue_change").head(10)
+                else:
+                    directional_products = product_display.reindex(
+                        product_display["revenue_change"].abs().sort_values(
+                            ascending=False
+                        ).index
+                    ).head(10)
 
-
-                if not negative.empty:
-
-                    product_display = negative
+                if not directional_products.empty:
+                    product_display = directional_products
 
 
             if (
@@ -1136,25 +1218,30 @@ if analyze:
                 and "revenue_change" in product_display.columns
             ):
 
+                product_chart_title = (
+                    "Largest product revenue gains"
+                    if root_cause_direction == "increase"
+                    else "Largest product revenue losses"
+                    if root_cause_direction == "decline"
+                    else "Largest product revenue changes"
+                )
+
                 st.markdown(
                     '<div class="section-title">'
-                    '📉 Largest product revenue losses'
+                    f'📊 {product_chart_title}'
                     '</div>',
                     unsafe_allow_html=True
                 )
 
                 loss_chart = px.bar(
-                    product_display.sort_values(
-                        "revenue_change",
-                        ascending=True
-                    ),
+                    product_display,
                     x="revenue_change",
                     y="product_name",
                     color="category"
                     if "category" in product_display.columns
                     else None,
                     orientation="h",
-                    title="Largest product revenue losses"
+                    title=product_chart_title
                 )
 
                 loss_chart.update_layout(
@@ -1175,7 +1262,7 @@ if analyze:
                 format_dataframe(
                     product_display
                 ),
-                use_container_width=True,
+                width="stretch",
                 hide_index=True
             )
 

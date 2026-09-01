@@ -20,6 +20,21 @@ MONTHS = {
     "december": 12
 }
 
+MONTH_ABBREVIATIONS = {
+    "jan": 1,
+    "feb": 2,
+    "mar": 3,
+    "apr": 4,
+    "jun": 6,
+    "jul": 7,
+    "aug": 8,
+    "sep": 9,
+    "sept": 9,
+    "oct": 10,
+    "nov": 11,
+    "dec": 12,
+}
+
 
 # =========================================================
 # EXTRACT MONTH
@@ -37,6 +52,14 @@ def extract_month(question: str):
     question = question.lower()
 
     for month_name, month_number in MONTHS.items():
+
+        if re.search(
+            rf"\b{month_name}\b",
+            question
+        ):
+            return month_number
+
+    for month_name, month_number in MONTH_ABBREVIATIONS.items():
 
         if re.search(
             rf"\b{month_name}\b",

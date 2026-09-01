@@ -126,14 +126,20 @@ def find_numeric_columns(df):
 
 def find_categorical_columns(
     df,
-    date_columns
+    date_columns,
+    numeric_columns=None
 ):
+
+    numeric_columns = numeric_columns or []
 
     categorical_columns = []
 
     for column in df.columns:
 
         if column in date_columns:
+            continue
+
+        if column in numeric_columns:
             continue
 
         series = df[column]
@@ -1050,10 +1056,24 @@ def create_chart(
         )
     )
 
+    for column in numeric_columns:
+
+        if not pd.api.types.is_numeric_dtype(
+            chart_df[column]
+        ):
+
+            chart_df[column] = (
+                pd.to_numeric(
+                    chart_df[column],
+                    errors="coerce"
+                )
+            )
+
     categorical_columns = (
         find_categorical_columns(
             chart_df,
-            date_columns
+            date_columns,
+            numeric_columns
         )
     )
 
@@ -1193,6 +1213,50 @@ if __name__ == "__main__":
 
         print(
             "❌ KPI test failed:",
+            e
+        )
+
+
+    # -----------------------------------------------------
+    # KPI FROM POSTGRES NUMERIC / DECIMAL
+    # -----------------------------------------------------
+
+    from decimal import Decimal
+
+    decimal_kpi_df = pd.DataFrame(
+        {
+            "total_revenue": [
+                Decimal("43501095.73")
+            ]
+        }
+    )
+
+    try:
+
+        fig = create_chart(
+            decimal_kpi_df
+        )
+
+        traces = getattr(
+            fig.data,
+            "__len__",
+            lambda: 0
+        )()
+
+        if traces:
+            raise ValueError(
+                "Decimal KPI was rendered as a chart "
+                f"with {traces} trace(s) instead of a KPI card."
+            )
+
+        print(
+            "✅ Decimal KPI test passed"
+        )
+
+    except Exception as e:
+
+        print(
+            "❌ Decimal KPI test failed:",
             e
         )
 

@@ -79,6 +79,11 @@ def compare_months(
 
     df = df.copy()
 
+    # The database query is ordered, but sort explicitly before
+    # calculating the prior month so LAG-equivalent logic is never
+    # affected by a changed query order.
+    df = df.sort_values("month").reset_index(drop=True)
+
     # Previous month's revenue
     df["previous_revenue"] = (
         df["revenue"].shift(1)
@@ -157,6 +162,30 @@ def find_biggest_drop(
     ]
 
     return biggest_drop
+
+
+def find_biggest_increase(
+    df: pd.DataFrame
+):
+    """Find the month with the largest percentage revenue increase."""
+
+    if df.empty:
+        return None
+
+    valid_df = df.dropna(
+        subset=["revenue_change_percent"]
+    )
+
+    increases = valid_df[
+        valid_df["revenue_change_percent"] > 0
+    ]
+
+    if increases.empty:
+        return None
+
+    return increases.loc[
+        increases["revenue_change_percent"].idxmax()
+    ]
 
 
 # =========================================================
